@@ -31,6 +31,9 @@
             components = new System.ComponentModel.Container();
             timer1 = new System.Windows.Forms.Timer(components);
             label2 = new Label();
+            label1 = new Label();
+            label3 = new Label();
+            label4 = new Label();
             SuspendLayout();
             // 
             // timer1
@@ -46,16 +49,48 @@
             label2.TabIndex = 1;
             label2.Text = "label2";
             // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(39, 32);
+            label1.Name = "label1";
+            label1.Size = new Size(63, 24);
+            label1.TabIndex = 2;
+            label1.Text = "label1";
+            // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Location = new Point(128, 32);
+            label3.Name = "label3";
+            label3.Size = new Size(63, 24);
+            label3.TabIndex = 3;
+            label3.Text = "label3";
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Location = new Point(72, 72);
+            label4.Name = "label4";
+            label4.Size = new Size(63, 24);
+            label4.TabIndex = 4;
+            label4.Text = "label4";
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(label4);
+            Controls.Add(label3);
+            Controls.Add(label1);
             Controls.Add(label2);
             Name = "Form1";
             Text = "Form1";
             Load += Form1_Load;
             Paint += Form1_Paint;
+            KeyDown += Form1_KeyDown;
+            KeyUp += Form1_KeyUp;
             MouseDown += Form1_MouseDown;
             MouseUp += Form1_MouseUp;
             ResumeLayout(false);
@@ -66,5 +101,8 @@
 
         private System.Windows.Forms.Timer timer1;
         private Label label2;
+        private Label label1;
+        private Label label3;
+        private Label label4;
     }
 }
