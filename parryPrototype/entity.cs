@@ -58,15 +58,15 @@ namespace parryPrototype
         public void updateLocation(float x, float y)
         {
             Location = new PointF(x, y);
-            Hitbox = new RectangleF(Location, Size);
             Center = new PointF (Location.X + Width/2, Location.Y + Height/2);
+            Hitbox = new RectangleF(Location, Size);
         }
 
         public void updateCenter(float x, float y)
         {
             Center = new PointF(x, y);
+            Location = new PointF (Center.X - Width/2, Center.Y - Height/2);
             Hitbox = new RectangleF(Location, Size);
-            Location = new PointF (Location.X - Width/2, Location.Y - Height/2);
         }
 
         /// <summary>
@@ -90,8 +90,8 @@ namespace parryPrototype
         public void scaleHitbox(float scaleF)
         {
             Hitbox = new RectangleF(
-                    Center, 
-                    new SizeF (Size.Width*scaleF, Size.Height*scaleF) );
+                    Location, 
+                    new SizeF (this.Size.Width*scaleF, this.Size.Height*scaleF) );
         }
     }
 }

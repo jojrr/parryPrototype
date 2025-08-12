@@ -13,7 +13,8 @@ namespace parryPrototype
             xVelocity, 
             yVelocity;
 
-        // debugging
+        // debugging 
+        // todo: set to private
         public float 
             velocityAngle, 
             yDiff, 
@@ -29,6 +30,14 @@ namespace parryPrototype
 
 
 
+        /// <summary>
+        /// creates a projectile with the following parameters
+        /// </summary>
+        /// <param name="origin">top-left of the projectile hitbox</param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        /// <param name="velocity"></param>
+        /// <param name="target"></param>
         public Projectile (PointF origin, int width, int height, float velocity, PointF target)
             : base(origin: origin, width: width, height: height)
         {
@@ -42,13 +51,21 @@ namespace parryPrototype
 
             ProjectileList.Add(this);
 
+            // debugging
             velocityAngle = velocities[2];
             yDiff = velocities[3];
             xDiff = velocities[4];
         }
 
+
+
+        /// <summary>
+        /// updates the projectile's location based on the velocity and angle (x and y velocities)
+        /// adjusts for rebound
+        /// </summary>
         public void moveProjectile()
         {
+            // moves backwards if rebounded
             if (isRebound)
             {
                 this.updateLocation( Location.X - xVelocity, Location.Y - yVelocity);
@@ -58,6 +75,10 @@ namespace parryPrototype
             this.updateLocation( Location.X + xVelocity, Location.Y + yVelocity);
         }
 
+
+
+        // calculates the required y and x velocities for the projectile
+        // angle and distances used for debugging
         public float[] CalculateVelocities(PointF target)
         {
             float xDiff = target.X - Location.X;
@@ -75,8 +96,10 @@ namespace parryPrototype
 
         public void rebound(PointF target)
         {
-            isRebound = !isRebound;
+            isRebound = !isRebound; 
 
+            // todo: redo positioning logic 
+            // also use different variable names maybe
             xDiff = Center.X - target.X;
             yDiff = Center.Y - target.Y;
 

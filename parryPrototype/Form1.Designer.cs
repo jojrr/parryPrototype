@@ -87,10 +87,8 @@
             Controls.Add(label2);
             Name = "Form1";
             Text = "Form1";
-            Load += Form1_Load;
             Paint += Form1_Paint;
             KeyDown += Form1_KeyDown;
-            KeyUp += Form1_KeyUp;
             MouseDown += Form1_MouseDown;
             MouseUp += Form1_MouseUp;
             ResumeLayout(false);
