@@ -9,20 +9,33 @@ namespace parryPrototype
             (origin: new Point(50, 250),
              width: 50,
              height: 50);
-        Pen playerPen;
+        Brush playerBrush;
 
-        int playerVelocity = 8;
 
         bool isParrying = false;
-        int parryDuration = 30,
-            parryWindow,
-            perfectParryWindow = 8,
-            freezeFrame = 0,
-            freezeFrameDuration = 15;
-        float zoomFactor = 1.35F;
 
-        int bulletCooldown = 50;
-        int bulletInterval;
+        const int 
+            parryDuration = 30,
+            perfectParryWindow = 8,
+            playerVelocity = 8,
+            slowFrameDuration = 35,
+            freezeFrameDuration = 15;
+
+        int 
+            parryWindow,
+            slowFrame = 0,
+            freezeFrame = 0;
+
+        const float 
+            zoomFactor = 3.35F, 
+            slowFactor = 5;
+
+        float currentSlowFactor = 1;
+
+
+        int 
+            bulletCooldown = 50,
+            bulletInterval;
 
         //Point mousePos;
 
@@ -39,7 +52,7 @@ namespace parryPrototype
 
             bulletInterval = bulletCooldown;
 
-            playerPen = Pens.Blue;
+            playerBrush = Brushes.Blue;
 
             parryWindow = parryDuration;
         }
@@ -68,7 +81,6 @@ namespace parryPrototype
                 parryWindow = parryDuration;
                 isParrying = true;
             }
-
         }
 
 
@@ -87,66 +99,97 @@ namespace parryPrototype
         // draws player and all projetiles
         private void Form1_Paint(object sender, PaintEventArgs e)
         {
-            e.Graphics.DrawRectangle(playerPen, defendBox.getHitbox());
+            e.Graphics.FillRectangle(playerBrush, defendBox.getHitbox());
 
             foreach (Projectile bullet in Projectile.ProjectileList)
-                e.Graphics.DrawRectangle(Pens.Red, bullet.getHitbox());
+                e.Graphics.FillRectangle(Brushes.Red, bullet.getHitbox());
         }
 
 
         // stores projectiles to be disposed of (as list cannot be altered mid-loop)
         List<Projectile> disposedProjectiles = new List<Projectile>(); 
         bool isScaled = false; // todo: maybe move into class
+        int slowTick = 0;
                                
         // main game tick timer 
-        //
         private void timer1_Tick(object sender, EventArgs e)
         {
             bool setFreeze = false;
 
-            // checks if frozen 
-            if (freezeFrame > 0)
-            {
-                if ((freezeFrame == 1) && isScaled) // only unzooms if it needs to
-                    unZoomScreen(zoomFactor);
+        // checks if frozen 
+        if (freezeFrame > 0)
+        {
+            if ((freezeFrame == 1) && isScaled) // only unzooms if it needs to
+                unZoomScreen(zoomFactor);
 
-                freezeFrame -= 1;
-                this.Refresh();
-                return;
+            freezeFrame -= 1;
+            this.Refresh();
+            return;
+        }
+        // if not frozen continue:
+
+
+        currentSlowFactor = 1;
+        // checks if slowed
+        if (slowFrame > 0)
+        {
+            if (isScaled)
+            {
+                if (zoomFactor <= 1)
+                    throw new ArgumentException("zoomFactor must be bigger than 1");
+
+                currentSlowFactor = 1/(zoomFactor); // accounts for scale when applying velocity changes
+
+                if (slowFrame == 1)
+                {
+                    unZoomScreen(zoomFactor);
+                    isScaled = false;
+                }
+
             }
 
-            // if not frozen continue:
+            currentSlowFactor += slowFactor;
+            slowFrame -= 1;
+            slowTick -= 1;
+            if (slowTick == 0)
+                slowTick = (int)currentSlowFactor;
+            }
+
 
             label2.Text = ($"({this.Size.Width}, {this.Size.Height})"); // debugging
             // mousePos = System.Windows.Forms.Cursor.Position;
             
             // creates bullets based on an interval
-            if (bulletInterval > 0)
-                bulletInterval -= 1;
-            else
+            if (slowTick == 0 || slowFrame == 0) 
             {
-                createBullet();
-                bulletInterval = bulletCooldown;
+                if (bulletInterval > 0)
+                    bulletInterval -= 1;
+                else
+                {
+                    createBullet();
+                    bulletInterval = bulletCooldown;
+                }
+
+
+                // ticks down the parry window
+                if (isParrying && parryWindow > 0)
+                    parryWindow -= 1;
+                if (parryWindow < 1)
+                    isParrying = false;
+
+                // debugging/visual indicator for parry
+                if (isParrying)
+                    playerBrush = Brushes.Gray;
+                else
+                    playerBrush = Brushes.Blue;
+
             }
-
-
-            // ticks down the parry window
-            if (isParrying && parryWindow > 0)
-                parryWindow -= 1;
-            if (parryWindow < 1)
-                isParrying = false;
-
-            // debugging/visual indicator for parry
-            if (isParrying)
-                playerPen = Pens.Gray;
-            else
-                playerPen = Pens.Blue;
 
 
 
             foreach (Projectile bullet in Projectile.ProjectileList)
             {
-                bullet.moveProjectile();
+                bullet.moveProjectile(currentSlowFactor);
 
                 if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
                 {
@@ -158,7 +201,9 @@ namespace parryPrototype
                         // if the current parry has lasted for at most the perfectParryWindow
                         if (parryWindow >= parryDuration - perfectParryWindow)
                         {
-                            setFreeze = true;
+                            //setFreeze = true;
+                            slowFrame = slowFrameDuration;
+                            slowTick =  (int)currentSlowFactor;
                             zoomScreen(zoomFactor);
                             continue; // so that the projectile is not disposed of when rebounded
                         }
@@ -166,8 +211,10 @@ namespace parryPrototype
 
                     else
                     {
-                        playerPen = Pens.Red; // visual hit indicator
-                        setFreeze = true;
+                        playerBrush = Brushes.Red; // visual hit indicator
+                        //setFreeze = true;
+                        slowFrame = slowFrameDuration;
+                        slowTick =  (int)currentSlowFactor;
                     }
 
                     disposedProjectiles.Add(bullet);
@@ -185,6 +232,7 @@ namespace parryPrototype
 
             if (setFreeze)
                 freezeFrame = freezeFrameDuration;
+
 
             this.Refresh();
             GC.Collect();
@@ -240,6 +288,7 @@ namespace parryPrototype
 
                 p.updateCenter(newPrjX, newPrjY);
                 p.scaleHitbox(scaleF);
+                this.Invalidate();
             }
 
             defendBox.updateCenter(midX, midY);
@@ -263,9 +312,11 @@ namespace parryPrototype
                 float oldPrjY = mcPrevCenter.Y + YDiff/scaleF;
 
                 p.updateCenter(oldPrjX, oldPrjY);
+                p.resetScale();
             }
 
             defendBox.updateCenter(mcPrevCenter.X, mcPrevCenter.Y);
+            defendBox.resetScale();
             isScaled = false; // screen is no longer scaled
         }
 
