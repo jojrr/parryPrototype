@@ -131,7 +131,7 @@ namespace parryPrototype
 
         currentSlowFactor = 1;
         // checks if slowed
-        if (slowFrame > 0)
+        if (slowFrame > 0) // todo: functionize all the slow logic
         {
             if (isScaled)
             {
@@ -201,9 +201,9 @@ namespace parryPrototype
                         // if the current parry has lasted for at most the perfectParryWindow
                         if (parryWindow >= parryDuration - perfectParryWindow)
                         {
-                            //setFreeze = true;
-                            slowFrame = slowFrameDuration;
-                            slowTick =  (int)currentSlowFactor;
+                            setFreeze = true;
+                            //slowFrame = slowFrameDuration;
+                            //slowTick =  (int)currentSlowFactor;
                             zoomScreen(zoomFactor);
                             continue; // so that the projectile is not disposed of when rebounded
                         }
@@ -212,9 +212,9 @@ namespace parryPrototype
                     else
                     {
                         playerBrush = Brushes.Red; // visual hit indicator
-                        //setFreeze = true;
-                        slowFrame = slowFrameDuration;
-                        slowTick =  (int)currentSlowFactor;
+                        setFreeze = true;
+                        //slowFrame = slowFrameDuration;
+                        //slowTick =  (int)currentSlowFactor;
                     }
 
                     disposedProjectiles.Add(bullet);
