@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
+using System.Threading;
 
 namespace parryPrototype
 {
@@ -12,7 +14,14 @@ namespace parryPrototype
         Brush playerBrush;
 
 
-        bool isParrying = false;
+        bool 
+            movingUp = false,
+            movingDown = false,
+            movingLeft = false,
+            movingRight = false,
+            setFreeze,
+            isParrying = false;
+            
 
         const int 
             parryDuration = 30,
@@ -30,7 +39,12 @@ namespace parryPrototype
             zoomFactor = 3.35F, 
             slowFactor = 5;
 
-        float currentSlowFactor = 1;
+        float 
+            currentSlowFactor = 1,
+            prevTime = 0,
+            deltaTime;
+        
+        Stopwatch stopWatch = new Stopwatch();
 
 
         int 
@@ -55,8 +69,76 @@ namespace parryPrototype
             playerBrush = Brushes.Blue;
 
             parryWindow = parryDuration;
+            stopWatch.Start();
+
+            Thread tickThread = new Thread(new ThreadStart(hitFunction));
+            tickThread.Start();
+
         }
 
+        
+        private void hitFunction()
+        {
+            while (true)
+            {
+                float currentTime = (float)stopWatch.Elapsed.Seconds;
+                deltaTime = currentTime - prevTime;
+                prevTime = currentTime;
+
+
+
+                foreach (Projectile bullet in Projectile.ProjectileList)
+                {
+                    bullet.moveProjectile(deltaTime);
+
+                    if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
+                    {
+
+                        if (isParrying)
+                        {
+                            bullet.rebound(defendBox.getCenter()); // required to prevent getting hit anyway when parrying
+
+                            // if the current parry has lasted for at most the perfectParryWindow
+                            if (parryWindow >= parryDuration - perfectParryWindow)
+                            {
+                                setFreeze = true;
+                                //slowFrame = slowFrameDuration;
+                                //slowTick =  (int)currentSlowFactor;
+                                zoomScreen(zoomFactor);
+                                continue; // so that the projectile is not disposed of when rebounded
+                            }
+                        }
+
+                        else
+                        {
+                            playerBrush = Brushes.Red; // visual hit indicator
+                            setFreeze = true;
+                            //slowFrame = slowFrameDuration;
+                            //slowTick =  (int)currentSlowFactor;
+                        }
+
+                        disposedProjectiles.Add(bullet);
+
+                    }
+                }
+
+                foreach (Projectile p in disposedProjectiles)
+                    Projectile.ProjectileList.Remove(p);
+
+                disposedProjectiles.Clear();
+
+                if (movingUp)
+                    playerMove(y: -playerVelocity*deltaTime);
+                if (movingDown)
+                    playerMove(y: playerVelocity*deltaTime);
+                if (movingRight)
+                    playerMove(x: playerVelocity*deltaTime);
+                if (movingLeft)
+                    playerMove(x: -playerVelocity*deltaTime);
+
+                this.Invoke((MethodInvoker)(() => this.Invalidate()));
+            }
+        }
 
 
         // spawn bullet about a point
@@ -114,46 +196,46 @@ namespace parryPrototype
         // main game tick timer 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            bool setFreeze = false;
+            setFreeze = false;
 
-        // checks if frozen 
-        if (freezeFrame > 0)
-        {
-            if ((freezeFrame == 1) && isScaled) // only unzooms if it needs to
-                unZoomScreen(zoomFactor);
-
-            freezeFrame -= 1;
-            this.Refresh();
-            return;
-        }
-        // if not frozen continue:
-
-
-        currentSlowFactor = 1;
-        // checks if slowed
-        if (slowFrame > 0) // todo: functionize all the slow logic
-        {
-            if (isScaled)
+            // checks if frozen 
+            if (freezeFrame > 0)
             {
-                if (zoomFactor <= 1)
-                    throw new ArgumentException("zoomFactor must be bigger than 1");
-
-                currentSlowFactor = 1/(zoomFactor); // accounts for scale when applying velocity changes
-
-                if (slowFrame == 1)
-                {
+                if ((freezeFrame == 1) && isScaled) // only unzooms if it needs to
                     unZoomScreen(zoomFactor);
-                    isScaled = false;
+
+                freezeFrame -= 1;
+                this.Refresh();
+                return;
+            }
+            // if not frozen continue:
+
+
+            currentSlowFactor = 1;
+            // checks if slowed
+            if (slowFrame > 0) // todo: functionize all the slow logic
+            {
+                if (isScaled)
+                {
+                    if (zoomFactor <= 1)
+                        throw new ArgumentException("zoomFactor must be bigger than 1");
+
+                    currentSlowFactor = 1/(zoomFactor); // accounts for scale when applying velocity changes
+
+                    if (slowFrame == 1)
+                    {
+                        unZoomScreen(zoomFactor);
+                        isScaled = false;
+                    }
+
                 }
 
-            }
-
-            currentSlowFactor += slowFactor;
-            slowFrame -= 1;
-            slowTick -= 1;
-            if (slowTick == 0)
-                slowTick = (int)currentSlowFactor;
-            }
+                currentSlowFactor += slowFactor;
+                slowFrame -= 1;
+                slowTick -= 1;
+                if (slowTick == 0)
+                    slowTick = (int)currentSlowFactor;
+                }
 
 
             label2.Text = ($"({this.Size.Width}, {this.Size.Height})"); // debugging
@@ -187,46 +269,6 @@ namespace parryPrototype
 
 
 
-            foreach (Projectile bullet in Projectile.ProjectileList)
-            {
-                bullet.moveProjectile(currentSlowFactor);
-
-                if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
-                {
-
-                    if (isParrying)
-                    {
-                        bullet.rebound(defendBox.getCenter()); // required to prevent getting hit anyway when parrying
-
-                        // if the current parry has lasted for at most the perfectParryWindow
-                        if (parryWindow >= parryDuration - perfectParryWindow)
-                        {
-                            setFreeze = true;
-                            //slowFrame = slowFrameDuration;
-                            //slowTick =  (int)currentSlowFactor;
-                            zoomScreen(zoomFactor);
-                            continue; // so that the projectile is not disposed of when rebounded
-                        }
-                    }
-
-                    else
-                    {
-                        playerBrush = Brushes.Red; // visual hit indicator
-                        setFreeze = true;
-                        //slowFrame = slowFrameDuration;
-                        //slowTick =  (int)currentSlowFactor;
-                    }
-
-                    disposedProjectiles.Add(bullet);
-
-                }
-            }
-
-            foreach (Projectile p in disposedProjectiles)
-                Projectile.ProjectileList.Remove(p);
-
-            disposedProjectiles.Clear();
-
 
             latestBulletInfo(); // debugging
 
@@ -258,7 +300,7 @@ namespace parryPrototype
 
 
         // functionised for... some reason
-        private void playerMove(float x, float y)
+        private void playerMove(float x = 0, float y = 0)
         {
             defendBox.updateLocation(defendBox.getLocation().X + x, defendBox.getLocation().Y + y);
         }
@@ -325,19 +367,43 @@ namespace parryPrototype
         // todo: use booleans so that the player cannot move during freezeFrame
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.W)
-                playerMove(0, -playerVelocity);
-
-            if (e.KeyCode == Keys.S)
-                playerMove(0, playerVelocity);
-
-            if (e.KeyCode == Keys.A)
-                playerMove(-playerVelocity, 0);
-
-            if (e.KeyCode == Keys.D)
-                playerMove(playerVelocity, 0);
-
+            switch (e.KeyCode)
+            {
+                case  Keys.W:
+                    movingUp = true;
+                    break;
+                case  Keys.S:
+                    movingDown = true;
+                    break;
+                case  Keys.A:
+                    movingLeft = true;
+                    break;
+                case  Keys.D:
+                    movingRight = true;
+                    break;
+            }
         }
+
+        private void Form1_KeyUp(object sender, KeyEventArgs e)
+        { 
+            switch (e.KeyCode)
+            {
+                case  Keys.W:
+                    movingUp = false;
+                    break;
+                case  Keys.S:
+                    movingDown = false;
+                    break;
+                case  Keys.A:
+                    movingLeft = false;
+                    break;
+                case  Keys.D:
+                    movingRight = false;
+                    break;
+            }
+        }
+
+
 
     }
 }

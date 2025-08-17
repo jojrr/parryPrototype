@@ -89,6 +89,7 @@
             Text = "Form1";
             Paint += Form1_Paint;
             KeyDown += Form1_KeyDown;
+            KeyUp += Form1_KeyUp;
             MouseDown += Form1_MouseDown;
             MouseUp += Form1_MouseUp;
             ResumeLayout(false);

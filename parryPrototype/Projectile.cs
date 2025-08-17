@@ -63,10 +63,10 @@ namespace parryPrototype
         /// updates the projectile's location based on the velocity and angle (x and y velocities)
         /// adjusts for rebound
         /// </summary>
-        public void moveProjectile(float slowFactor)
+        public void moveProjectile(float deltaTime)
         {
-            float xVelocity = this.xVelocity/slowFactor;
-            float yVelocity = this.yVelocity/slowFactor;
+            float xVelocity = this.xVelocity*deltaTime;
+            float yVelocity = this.yVelocity*deltaTime;
 
             // moves backwards if rebounded
             if (isRebound)
