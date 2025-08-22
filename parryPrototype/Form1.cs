@@ -26,23 +26,28 @@ namespace parryPrototype
         const int 
             parryDuration = 30,
             perfectParryWindow = 8,
-            playerVelocity = 8,
+            playerVelocity = 50,
             slowFrameDuration = 35,
-            freezeFrameDuration = 15;
+            freezeFrameDurationMS = 1500;
 
         int 
+            targetFrameRate = 144,
+            refreshRate;
+
+        double
             parryWindow,
             slowFrame = 0,
-            freezeFrame = 0;
+            freezeFrameMS = 0;
 
         const float 
             zoomFactor = 3.35F, 
             slowFactor = 5;
 
-        float 
-            currentSlowFactor = 1,
+        float currentSlowFactor = 1;
+        
+        double
             prevTime = 0,
-            deltaTime;
+            deltaTime = 0;
         
         Stopwatch stopWatch = new Stopwatch();
 
@@ -61,9 +66,15 @@ namespace parryPrototype
             Width = 1460;
             Height = 770;
 
-            timer1.Enabled = true;
-            timer1.Interval = 16; // 60 tick per second
+            refreshRate = (int)(1000 / targetFrameRate); 
 
+            timer1.Enabled = true;
+            timer1.Interval = refreshRate;
+            System.Windows.Forms.Timer deltaTimer = new System.Windows.Forms.Timer(); 
+            // deltaTimer.Interval = 1;
+            // deltaTimer.Tick += getDeltaTime;
+            // deltaTimer.Enabled = true;
+            
             bulletInterval = bulletCooldown;
 
             playerBrush = Brushes.Blue;
@@ -71,73 +82,87 @@ namespace parryPrototype
             parryWindow = parryDuration;
             stopWatch.Start();
 
-            Thread tickThread = new Thread(new ThreadStart(hitFunction));
-            tickThread.Start();
+            Thread collisionThread = new Thread(() =>{
+                    while(true)
+                    {
+                        getDeltaTime();
+                        collisionHandler();
+                        this.Invoke(() => this.Invalidate());
+                        Thread.Sleep(1);
+                    }
+            });
+
+            collisionThread.Start();
 
         }
 
-        
-        private void hitFunction()
+        private void getDeltaTime(/* object sender, EventArgs e */)
         {
-            while (true)
+            if (freezeFrameMS > 0)
             {
-                float currentTime = (float)stopWatch.Elapsed.Seconds;
-                deltaTime = currentTime - prevTime;
-                prevTime = currentTime;
+                deltaTime = 0;
+                return;
+            }
 
+            double currentTime = stopWatch.Elapsed.TotalSeconds*10;
+            deltaTime = currentTime - prevTime;
+            prevTime = currentTime;
+        }
 
+        
+        private void collisionHandler()
+        {
+            if (slowFrame > 0)
+                deltaTime /= slowFactor;
 
-                foreach (Projectile bullet in Projectile.ProjectileList)
+            foreach (Projectile bullet in Projectile.ProjectileList)
+            {
+                bullet.moveProjectile(deltaTime);
+
+                if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
                 {
-                    bullet.moveProjectile(deltaTime);
 
-                    if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
+                    if (isParrying)
                     {
+                        bullet.rebound(defendBox.getCenter()); // required to prevent getting hit anyway when parrying
 
-                        if (isParrying)
+                        // if the current parry has lasted for at most the perfectParryWindow
+                        if (parryWindow >= parryDuration - perfectParryWindow)
                         {
-                            bullet.rebound(defendBox.getCenter()); // required to prevent getting hit anyway when parrying
-
-                            // if the current parry has lasted for at most the perfectParryWindow
-                            if (parryWindow >= parryDuration - perfectParryWindow)
-                            {
-                                setFreeze = true;
-                                //slowFrame = slowFrameDuration;
-                                //slowTick =  (int)currentSlowFactor;
-                                zoomScreen(zoomFactor);
-                                continue; // so that the projectile is not disposed of when rebounded
-                            }
-                        }
-
-                        else
-                        {
-                            playerBrush = Brushes.Red; // visual hit indicator
                             setFreeze = true;
                             //slowFrame = slowFrameDuration;
                             //slowTick =  (int)currentSlowFactor;
+                            zoomScreen(zoomFactor);
+                            continue; // so that the projectile is not disposed of when rebounded
                         }
-
-                        disposedProjectiles.Add(bullet);
-
                     }
+
+                    else
+                    {
+                        playerBrush = Brushes.Red; // visual hit indicator
+                        setFreeze = true;
+                        //slowFrame = slowFrameDuration;
+                        //slowTick =  (int)currentSlowFactor;
+                    }
+
+                    disposedProjectiles.Add(bullet);
+
                 }
-
-                foreach (Projectile p in disposedProjectiles)
-                    Projectile.ProjectileList.Remove(p);
-
-                disposedProjectiles.Clear();
-
-                if (movingUp)
-                    playerMove(y: -playerVelocity*deltaTime);
-                if (movingDown)
-                    playerMove(y: playerVelocity*deltaTime);
-                if (movingRight)
-                    playerMove(x: playerVelocity*deltaTime);
-                if (movingLeft)
-                    playerMove(x: -playerVelocity*deltaTime);
-
-                this.Invoke((MethodInvoker)(() => this.Invalidate()));
             }
+
+            foreach (Projectile p in disposedProjectiles)
+                Projectile.ProjectileList.Remove(p);
+
+            disposedProjectiles.Clear();
+
+            if (movingUp)
+                playerMove(y: -playerVelocity*deltaTime);
+            if (movingDown)
+                playerMove(y: playerVelocity*deltaTime);
+            if (movingRight)
+                playerMove(x: playerVelocity*deltaTime);
+            if (movingLeft)
+                playerMove(x: -playerVelocity*deltaTime);
         }
 
 
@@ -148,7 +173,7 @@ namespace parryPrototype
                 (origin: new Point(800, 250),
                   width: 30,
                   height: 10,
-                  velocity: 8,
+                  velocity: 50,
                   target: defendBox.getCenter());
         }
 
@@ -199,12 +224,9 @@ namespace parryPrototype
             setFreeze = false;
 
             // checks if frozen 
-            if (freezeFrame > 0)
+            if (freezeFrameMS > 0)
             {
-                if ((freezeFrame == 1) && isScaled) // only unzooms if it needs to
-                    unZoomScreen(zoomFactor);
-
-                freezeFrame -= 1;
+                freezeFrameMS -= refreshRate;
                 this.Refresh();
                 return;
             }
@@ -215,27 +237,20 @@ namespace parryPrototype
             // checks if slowed
             if (slowFrame > 0) // todo: functionize all the slow logic
             {
-                if (isScaled)
-                {
-                    if (zoomFactor <= 1)
-                        throw new ArgumentException("zoomFactor must be bigger than 1");
 
-                    currentSlowFactor = 1/(zoomFactor); // accounts for scale when applying velocity changes
+                if (zoomFactor <= 1)
+                    throw new ArgumentException("zoomFactor must be bigger than 1");
 
-                    if (slowFrame == 1)
-                    {
-                        unZoomScreen(zoomFactor);
-                        isScaled = false;
-                    }
+                currentSlowFactor = 1/(zoomFactor); // accounts for scale when applying velocity changes
 
-                }
+                slowFrame -= deltaTime;
+            }
 
-                currentSlowFactor += slowFactor;
-                slowFrame -= 1;
-                slowTick -= 1;
-                if (slowTick == 0)
-                    slowTick = (int)currentSlowFactor;
-                }
+            if ((slowFrame <= 0 || freezeFrameMS <= 0) && isScaled)
+            {
+                unZoomScreen(zoomFactor);
+                isScaled = false;
+            }
 
 
             label2.Text = ($"({this.Size.Width}, {this.Size.Height})"); // debugging
@@ -267,13 +282,10 @@ namespace parryPrototype
 
             }
 
-
-
-
             latestBulletInfo(); // debugging
 
             if (setFreeze)
-                freezeFrame = freezeFrameDuration;
+                freezeFrameMS = freezeFrameDurationMS;
 
 
             this.Refresh();
@@ -300,9 +312,9 @@ namespace parryPrototype
 
 
         // functionised for... some reason
-        private void playerMove(float x = 0, float y = 0)
+        private void playerMove(double x = 0, double y = 0)
         {
-            defendBox.updateLocation(defendBox.getLocation().X + x, defendBox.getLocation().Y + y);
+            defendBox.updateLocation(defendBox.getLocation().X + (float)x, defendBox.getLocation().Y + (float)y);
         }
 
 
