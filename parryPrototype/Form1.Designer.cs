@@ -87,6 +87,7 @@
             Controls.Add(label2);
             Name = "Form1";
             Text = "Form1";
+            FormClosing += Form1_FormClosing;
             Paint += Form1_Paint;
             KeyDown += Form1_KeyDown;
             KeyUp += Form1_KeyUp;
