@@ -15,7 +15,9 @@ namespace parryPrototype
     {
         protected PointF Location;
         protected PointF Center;
-        protected SizeF Size;
+        protected SizeF 
+            Size,
+            scaledSize;
         protected int
             Width = 0,
             Height = 0;
@@ -46,6 +48,7 @@ namespace parryPrototype
             Width = width;
             Height = height;
             Size = new Size( width, height);
+            scaledSize = Size;
             Hitbox = new RectangleF(origin, Size); 
             Center = new PointF (Hitbox.X + Width/2, Hitbox.Y + Height/2);
         }
@@ -59,14 +62,14 @@ namespace parryPrototype
         {
             Location = new PointF(x, y);
             Center = new PointF (Location.X + Width/2, Location.Y + Height/2);
-            Hitbox = new RectangleF(Location, Size);
+            Hitbox = new RectangleF(Location, scaledSize);
         }
 
         public void updateCenter(float x, float y)
         {
             Center = new PointF(x, y);
             Location = new PointF (Center.X - Width/2, Center.Y - Height/2);
-            Hitbox = new RectangleF(Location, Size);
+            Hitbox = new RectangleF(Location, scaledSize);
         }
 
         /// <summary>
@@ -89,9 +92,14 @@ namespace parryPrototype
 
         public void scaleHitbox(float scaleF)
         {
-            Hitbox = new RectangleF(
-                    Location, 
-                    new SizeF (this.Size.Width*scaleF, this.Size.Height*scaleF) );
+            scaledSize = new SizeF (this.Size.Width*scaleF, this.Size.Height*scaleF);
+            this.Hitbox = new RectangleF( Location, scaledSize );
+        }
+
+        public void resetScale()
+        {
+            scaledSize = Size;
+            this.Hitbox = new RectangleF( Location, scaledSize );
         }
     }
 }

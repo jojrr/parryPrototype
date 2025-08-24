@@ -1,28 +1,63 @@
 using System.Runtime.CompilerServices;
+using System.Diagnostics;
+using System.Threading;
 
 namespace parryPrototype
 {
     public partial class Form1 : Form
     {
 
-        readonly new Entity defendBox = new 
+        readonly new Entity defendBox = new
             (origin: new Point(50, 250),
              width: 50,
              height: 50);
-        Pen playerPen;
+        Brush playerBrush;
+        
+        PointF bulletOrigin = new Point (800, 250);
 
-        int playerVelocity = 8;
+        CancellationTokenSource threadTokenSrc = new CancellationTokenSource();
+        Thread collisionThread = new Thread(() => { });
 
-        bool isParrying = false;
-        int parryDuration = 30,
+        bool
+            movingUp = false,
+            movingDown = false,
+            movingLeft = false,
+            movingRight = false,
+            playerIsHit = false,
+            isParrying = false,
+            setFreeze = false,
+            slowedMov = false;
+
+
+        const int playerVelocity = 50;
+
+
+        int
+            targetFrameRate = 60,
+            refreshRate;
+
+        const float
+            zoomFactor = 3.35F,
+            slowFactor = 2.5F,
+            parryDurationS = 0.3F,
+            perfectParryWindowS = 0.08F,
+            slowDurationS = 0.35F,
+            bulletCooldownS = 0.5F,
+            freezeDuratonS = 0.15F;
+
+        float
+            bulletInterval,
             parryWindow,
-            perfectParryWindow = 8,
-            freezeFrame = 0,
-            freezeFrameDuration = 15;
-        float zoomFactor = 1.35F;
+            curZoom = 1,
+            slowFrame = 0,
+            freezeFrame = 0;
 
-        int bulletCooldown = 50;
-        int bulletInterval;
+        double
+            prevTime = 0,
+            deltaTime = 0;
+
+        Stopwatch stopWatch = new Stopwatch();
+
 
         //Point mousePos;
 
@@ -34,14 +69,148 @@ namespace parryPrototype
             Width = 1460;
             Height = 770;
 
+            refreshRate = (int)(1000 / targetFrameRate);
+            timer1.Interval = refreshRate;
             timer1.Enabled = true;
-            timer1.Interval = 16; // 60 tick per second
 
-            bulletInterval = bulletCooldown;
+            bulletInterval = bulletCooldownS;
 
-            playerPen = Pens.Blue;
+            playerBrush = Brushes.Blue;
 
-            parryWindow = parryDuration;
+            stopWatch.Start();
+
+            CancellationToken threadCT = threadTokenSrc.Token;
+            collisionThread = new Thread(() =>
+            {
+                while (true)
+                {
+                    if (threadCT.IsCancellationRequested)
+                        return;
+                    getDeltaTime();
+                    collisionHandler();
+                    //this.BeginInvoke(() => this.Invalidate());
+                    Thread.Sleep(1);
+                }
+            });
+
+            collisionThread.Start();
+
+        }
+
+        private void getDeltaTime(/* object sender, EventArgs e */)
+        {
+            double currentTime = stopWatch.Elapsed.TotalSeconds;
+            deltaTime = (currentTime - prevTime) * 10;
+            prevTime = currentTime;
+        }
+
+
+        private void collisionHandler()
+        {
+
+            // checks if frozen 
+            if (freezeFrame > 0)
+            {
+                freezeFrame -= (float)deltaTime;
+                return;
+            }
+            // if not frozen continue:
+
+
+            playerIsHit = false;
+            setFreeze = false;
+            freezeFrame = 0;
+
+
+            // checks if slowed
+            if (slowFrame > 0) // todo: functionize all the slow logic
+            {
+                 slowedMov = true;
+
+                if (zoomFactor <= 1)
+                    throw new ArgumentException("zoomFactor must be bigger than 1");
+
+                slowFrame -= (float)deltaTime;
+
+                deltaTime /= (zoomFactor / slowFactor);
+            }
+            else if (slowedMov)
+            {
+                movingUp=false; 
+                movingDown=false; 
+                movingLeft=false; 
+                movingRight=false; 
+                slowedMov=false;
+            }
+
+
+
+            foreach (Projectile bullet in Projectile.ProjectileList)
+            {
+                bullet.moveProjectile(deltaTime);
+
+                if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
+                {
+
+                    if (isParrying)
+                    {
+                        bullet.rebound(defendBox.getCenter()); // required to prevent getting hit anyway when parrying
+
+                        // if the current parry has lasted for at most the perfectParryWindow
+                        if (parryWindow >= parryDurationS - perfectParryWindowS * 10)
+                        {
+                            //setFreeze = true;
+                            slowFrame = slowDurationS*10;
+                            zoomScreen(zoomFactor);
+                            continue; // so that the projectile is not disposed of when rebounded
+                        }
+                    }
+
+                    else
+                    {
+                        playerIsHit = true;
+                        setFreeze = true;
+                    }
+
+                    disposedProjectiles.Add(bullet);
+
+                }
+            }
+
+            if (setFreeze)
+                freezeFrame = freezeDuratonS * 10;
+
+            foreach (Projectile p in disposedProjectiles)
+                Projectile.ProjectileList.Remove(p);
+
+            disposedProjectiles.Clear();
+
+
+            if ((bulletInterval > 0) || (deltaTime == 0))
+                bulletInterval -= (float)deltaTime;
+            else
+            {
+                createBullet();
+                bulletInterval = bulletCooldownS * 10;
+            }
+
+
+            // ticks down the parry window
+            if (isParrying && parryWindow > 0)
+                parryWindow -= (float)deltaTime;
+            if (parryWindow < 1)
+                isParrying = false;
+
+
+            if (movingUp)
+                playerMove(y: -playerVelocity * deltaTime);
+            if (movingDown)
+                playerMove(y: playerVelocity * deltaTime);
+            if (movingRight)
+                playerMove(x: playerVelocity * deltaTime);
+            if (movingLeft)
+                playerMove(x: -playerVelocity * deltaTime);
+
         }
 
 
@@ -50,13 +219,13 @@ namespace parryPrototype
         private void createBullet()
         {
             Projectile bullet = new Projectile
-                (origin: new Point(800, 250),
+                (origin: bulletOrigin,
                   width: 30,
                   height: 10,
-                  velocity: 8,
+                  velocity: 50,
                   target: defendBox.getCenter());
+            bullet.scaleHitbox(curZoom);
         }
-
 
 
 
@@ -65,10 +234,9 @@ namespace parryPrototype
             // if Not parrying then resets parrywindow and sets to parrying
             if ((e.Button == MouseButtons.Right) && (!isParrying))
             {
-                parryWindow = parryDuration;
+                parryWindow = (parryDurationS * 10);
                 isParrying = true;
             }
-
         }
 
 
@@ -87,104 +255,43 @@ namespace parryPrototype
         // draws player and all projetiles
         private void Form1_Paint(object sender, PaintEventArgs e)
         {
-            e.Graphics.DrawRectangle(playerPen, defendBox.getHitbox());
+            e.Graphics.FillRectangle(playerBrush, defendBox.getHitbox());
 
             foreach (Projectile bullet in Projectile.ProjectileList)
-                e.Graphics.DrawRectangle(Pens.Red, bullet.getHitbox());
+                e.Graphics.FillRectangle(Brushes.Red, bullet.getHitbox());
         }
 
 
         // stores projectiles to be disposed of (as list cannot be altered mid-loop)
-        List<Projectile> disposedProjectiles = new List<Projectile>(); 
-        bool isScaled = false; // todo: maybe move into class
-                               
-        // main game tick timer 
-        //
+        List<Projectile> disposedProjectiles = new List<Projectile>();
+        int slowTick = 0;
+
+        // rendering timer
         private void timer1_Tick(object sender, EventArgs e)
         {
-            bool setFreeze = false;
-
-            // checks if frozen 
-            if (freezeFrame > 0)
+            if (slowFrame <= 0 && freezeFrame <= 0 && curZoom != 1)
             {
-                if ((freezeFrame == 1) && isScaled) // only unzooms if it needs to
-                    unZoomScreen(zoomFactor);
-
-                freezeFrame -= 1;
-                this.Refresh();
-                return;
+                unZoomScreen(zoomFactor);
+                curZoom = 1;
             }
 
-            // if not frozen continue:
 
             label2.Text = ($"({this.Size.Width}, {this.Size.Height})"); // debugging
-            // mousePos = System.Windows.Forms.Cursor.Position;
-            
-            // creates bullets based on an interval
-            if (bulletInterval > 0)
-                bulletInterval -= 1;
-            else
-            {
-                createBullet();
-                bulletInterval = bulletCooldown;
-            }
+                                                                        // mousePos = System.Windows.Forms.Cursor.Position;
 
-
-            // ticks down the parry window
-            if (isParrying && parryWindow > 0)
-                parryWindow -= 1;
-            if (parryWindow < 1)
-                isParrying = false;
 
             // debugging/visual indicator for parry
             if (isParrying)
-                playerPen = Pens.Gray;
+                playerBrush = Brushes.Gray;
+            else if (playerIsHit)
+                playerBrush = Brushes.Red; // visual hit indicator
             else
-                playerPen = Pens.Blue;
+                playerBrush = Brushes.Blue;
 
-
-
-            foreach (Projectile bullet in Projectile.ProjectileList)
-            {
-                bullet.moveProjectile();
-
-                if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
-                {
-
-                    if (isParrying)
-                    {
-                        bullet.rebound(defendBox.getCenter()); // required to prevent getting hit anyway when parrying
-
-                        // if the current parry has lasted for at most the perfectParryWindow
-                        if (parryWindow >= parryDuration - perfectParryWindow)
-                        {
-                            setFreeze = true;
-                            zoomScreen(zoomFactor);
-                            continue; // so that the projectile is not disposed of when rebounded
-                        }
-                    }
-
-                    else
-                    {
-                        playerPen = Pens.Red; // visual hit indicator
-                        setFreeze = true;
-                    }
-
-                    disposedProjectiles.Add(bullet);
-
-                }
-            }
-
-            foreach (Projectile p in disposedProjectiles)
-                Projectile.ProjectileList.Remove(p);
-
-            disposedProjectiles.Clear();
 
 
             latestBulletInfo(); // debugging
 
-            if (setFreeze)
-                freezeFrame = freezeFrameDuration;
 
             this.Refresh();
             GC.Collect();
@@ -202,7 +309,7 @@ namespace parryPrototype
                 // p's y/x distance from defendBox
                 label1.Text = p.yDiff.ToString();
                 label3.Text = p.xDiff.ToString();
-                label4.Text = p.velocityAngle.ToString();
+                label4.Text = freezeFrame.ToString();
             }
         }
 
@@ -210,9 +317,9 @@ namespace parryPrototype
 
 
         // functionised for... some reason
-        private void playerMove(float x, float y)
+        private void playerMove(double x = 0, double y = 0)
         {
-            defendBox.updateLocation(defendBox.getLocation().X + x, defendBox.getLocation().Y + y);
+            defendBox.updateLocation(defendBox.getLocation().X + (float)x, defendBox.getLocation().Y + (float)y);
         }
 
 
@@ -221,7 +328,7 @@ namespace parryPrototype
 
         private void zoomScreen(float scaleF)
         {
-            isScaled = true;
+            curZoom = scaleF;
 
             // gets center of screen
             float midX = this.Width / 2;
@@ -235,12 +342,21 @@ namespace parryPrototype
                 float XDiff = p.getCenter().X - mcPrevCenter.X;
                 float YDiff = p.getCenter().Y - mcPrevCenter.Y;
 
-                float newPrjX = midX + XDiff*scaleF;
-                float newPrjY = midY + YDiff*scaleF;
+                float newPrjX = midX + XDiff * scaleF;
+                float newPrjY = midY + YDiff * scaleF;
 
                 p.updateCenter(newPrjX, newPrjY);
                 p.scaleHitbox(scaleF);
+                this.Invalidate();
             }
+
+            float pOriginXDif = bulletOrigin.X - mcPrevCenter.X;
+            float pOriginYDif = bulletOrigin.Y - mcPrevCenter.Y;
+
+            float newPOriginX = midX + pOriginXDif * scaleF;
+            float newPOriginY = midY + pOriginYDif * scaleF;
+
+            bulletOrigin = new PointF(newPOriginX, newPOriginY);
 
             defendBox.updateCenter(midX, midY);
             defendBox.scaleHitbox(scaleF);
@@ -248,7 +364,6 @@ namespace parryPrototype
 
 
 
-        // reverse of zoomScreen()
         private void unZoomScreen(float scaleF)
         {
             float midX = this.Width / 2;
@@ -259,14 +374,24 @@ namespace parryPrototype
                 float XDiff = p.getCenter().X - midX;
                 float YDiff = p.getCenter().Y - midY;
 
-                float oldPrjX = mcPrevCenter.X + XDiff/scaleF;
-                float oldPrjY = mcPrevCenter.Y + YDiff/scaleF;
+                float oldPrjX = mcPrevCenter.X + XDiff / scaleF;
+                float oldPrjY = mcPrevCenter.Y + YDiff / scaleF;
 
                 p.updateCenter(oldPrjX, oldPrjY);
+                p.resetScale();
             }
 
+            float oXDiff = bulletOrigin.X - midX;
+            float oYDiff = bulletOrigin.Y - midY;
+
+            float oldOrigX = mcPrevCenter.X + oXDiff / scaleF;
+            float oldOrigY = mcPrevCenter.Y + oYDiff / scaleF;
+
+            bulletOrigin = new PointF(oldOrigX, oldOrigY);
+
             defendBox.updateCenter(mcPrevCenter.X, mcPrevCenter.Y);
-            isScaled = false; // screen is no longer scaled
+            defendBox.resetScale();
+            curZoom = 1; // screen is no longer scaled
         }
 
 
@@ -274,19 +399,48 @@ namespace parryPrototype
         // todo: use booleans so that the player cannot move during freezeFrame
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.W)
-                playerMove(0, -playerVelocity);
-
-            if (e.KeyCode == Keys.S)
-                playerMove(0, playerVelocity);
-
-            if (e.KeyCode == Keys.A)
-                playerMove(-playerVelocity, 0);
-
-            if (e.KeyCode == Keys.D)
-                playerMove(playerVelocity, 0);
-
+            switch (e.KeyCode)
+            {
+                case Keys.W:
+                    movingUp = true;
+                    break;
+                case Keys.S:
+                    movingDown = true;
+                    break;
+                case Keys.A:
+                    movingLeft = true;
+                    break;
+                case Keys.D:
+                    movingRight = true;
+                    break;
+            }
         }
 
+        private void Form1_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (slowFrame > 0)
+                return;
+
+            switch (e.KeyCode)
+            {
+                case Keys.W:
+                    movingUp = false;
+                    break;
+                case Keys.S:
+                    movingDown = false;
+                    break;
+                case Keys.A:
+                    movingLeft = false;
+                    break;
+                case Keys.D:
+                    movingRight = false;
+                    break;
+            }
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            threadTokenSrc.Cancel();
+        }
     }
 }

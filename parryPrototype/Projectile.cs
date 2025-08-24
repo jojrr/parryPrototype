@@ -63,8 +63,11 @@ namespace parryPrototype
         /// updates the projectile's location based on the velocity and angle (x and y velocities)
         /// adjusts for rebound
         /// </summary>
-        public void moveProjectile()
+        public void moveProjectile(double deltaTime)
         {
+            float xVelocity = (float)(this.xVelocity*deltaTime);
+            float yVelocity = (float)(this.yVelocity*deltaTime);
+
             // moves backwards if rebounded
             if (isRebound)
             {
@@ -94,7 +97,11 @@ namespace parryPrototype
             return [xVelocity, yVelocity, (float)velocityAngle, yDiff, xDiff];
         }
 
-        public void rebound(PointF target)
+        /// <summary>
+        /// makes the projectile rebound off [target]
+        /// </summary>
+        /// <param name="target">rebound target</param>
+        public void rebound(PointF target) // todo: use Entity or RectangleF - not PointF
         {
             isRebound = !isRebound; 
 
