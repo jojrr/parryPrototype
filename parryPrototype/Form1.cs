@@ -26,8 +26,11 @@ namespace parryPrototype
             movingDown = false,
             movingLeft = false,
             movingRight = false,
+
             playerIsHit = false,
+
             isParrying = false,
+
             setFreeze = false,
             isPaused = false,
             slowedMov = false;
@@ -45,21 +48,30 @@ namespace parryPrototype
         const float
             zoomFactor = 3.35F,
             slowFactor = 2.5F,
+            slowDurationS = 0.35F,
+
             parryDurationS = 0.45F,
             perfectParryWindowS = 0.08F,
-            slowDurationS = 0.35F,
+            parryEndlagS = 0.2F,
+
             bulletCooldownS = 0.5F,
+
             freezeDuratonS = 0.15F;
 
         float
             bulletInterval,
+
             parryWindow,
+            endLagTime,
+
             curZoom = 1,
+
             slowFrame = 0,
             freezeFrame = 0;
 
         double
             prevTime = 0,
+            motionDT = 0,
             deltaTime = 0;
 
         Stopwatch stopWatch = new Stopwatch();
@@ -119,6 +131,7 @@ namespace parryPrototype
         {
             double currentTime = stopWatch.Elapsed.TotalSeconds;
             deltaTime = (currentTime - prevTime) * 10;
+            motionDT = deltaTime;
             prevTime = currentTime;
         }
 
@@ -152,7 +165,8 @@ namespace parryPrototype
 
                 slowFrame -= (float)deltaTime;
 
-                deltaTime /= (zoomFactor / slowFactor);
+                deltaTime /= slowFactor;
+                motionDT /= (zoomFactor / slowFactor);
             }
             else if (slowedMov)
             {
@@ -165,9 +179,16 @@ namespace parryPrototype
 
 
 
+            if (endLagTime > 0)
+            {
+                endLagTime -= (float)deltaTime;
+                isParrying = false;
+            }
+
+
             foreach (Projectile bullet in Projectile.ProjectileList)
             {
-                bullet.moveProjectile(deltaTime);
+                bullet.moveProjectile(motionDT);
 
                 if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
                 {
@@ -219,17 +240,21 @@ namespace parryPrototype
             if (isParrying && parryWindow > 0)
                 parryWindow -= (float)deltaTime;
             if (parryWindow < 0)
-                isParrying = false;
+            {
+                endLagTime = parryEndlagS*10;
+                parryWindow = 0;
+            }
 
+           
 
             if (movingUp)
-                playerMove(y: -playerVelocity * deltaTime);
+                playerMove(y: -playerVelocity * motionDT);
             if (movingDown)
-                playerMove(y: playerVelocity * deltaTime);
+                playerMove(y: playerVelocity * motionDT);
             if (movingRight)
-                playerMove(x: playerVelocity * deltaTime);
+                playerMove(x: playerVelocity * motionDT);
             if (movingLeft)
-                playerMove(x: -playerVelocity * deltaTime);
+                playerMove(x: -playerVelocity * motionDT);
 
         }
 
@@ -307,8 +332,11 @@ namespace parryPrototype
             // if Not parrying then resets parrywindow and sets to parrying
             if ((e.Button == MouseButtons.Right) && (!isParrying))
             {
-                parryWindow = (parryDurationS * 10);
-                isParrying = true;
+                if (endLagTime <= 0)
+                { 
+                    parryWindow = (parryDurationS * 10);
+                    isParrying = true;
+                }
             }
         }
 
@@ -319,7 +347,11 @@ namespace parryPrototype
             // stops parrying when mouseup but doesnt reset timer > only on mouse down 
             if (e.Button == MouseButtons.Right)
             {
-                isParrying = false;
+                if (isParrying)
+                {
+                    endLagTime = parryEndlagS * 10;
+                    isParrying = false;
+                }
             }
         }
 
