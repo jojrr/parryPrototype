@@ -18,6 +18,8 @@ namespace parryPrototype
         CancellationTokenSource threadTokenSrc = new CancellationTokenSource();
         Thread collisionThread = new Thread(() => { });
 
+        hpBarUI hpBar;
+
         bool
             movingUp = false,
             movingDown = false,
@@ -33,7 +35,9 @@ namespace parryPrototype
 
 
         int
-            targetFrameRate = 60,
+            maxHp = 6,
+            currentHp,
+            targetFrameRate = 144,
             refreshRate;
 
         const float
@@ -73,7 +77,11 @@ namespace parryPrototype
             timer1.Interval = refreshRate;
             timer1.Enabled = true;
 
+
             bulletInterval = bulletCooldownS;
+            currentHp=maxHp;
+            computeHP();
+
 
             playerBrush = Brushes.Blue;
 
@@ -89,7 +97,7 @@ namespace parryPrototype
                     getDeltaTime();
                     collisionHandler();
                     //this.BeginInvoke(() => this.Invalidate());
-                    Thread.Sleep(1);
+                    Thread.Sleep(refreshRate/4);
                 }
             });
 
@@ -229,6 +237,53 @@ namespace parryPrototype
 
 
 
+        const int hpIconOffset = 50; 
+
+        private void computeHP()
+        {
+            hpBar = new hpBarUI(
+                    origin: new PointF(70,50),
+                    barWidth: 20,
+                    barHeight: 40,
+                    iconCount: maxHp / 2
+            );
+
+            float xOffset = 0;
+            int tempHpStore = currentHp;
+
+            for (int i = 0; i < hpBar.IconCount; i++)
+            {
+                PointF rectangleOrigin = new PointF(hpBar.Origin.X + xOffset, hpBar.Origin.Y); 
+                hpBar.HpRectangles[i] = new RectangleF(rectangleOrigin, hpBar.ElementSize);
+                if (tempHpStore >= 2)
+                {
+                    hpBar.HpRecColours[i] = Brushes.Green;
+                }
+                else if (tempHpStore == 1)
+                {
+                    hpBar.HpRecColours[i] = Brushes.Orange;
+                }
+                else
+                {
+                    hpBar.HpRecColours[i] = Brushes.DimGray;
+                }
+
+                xOffset += hpIconOffset * hpBar.ScaleF; 
+                tempHpStore -= 2;
+            }
+            // MessageBox.Show($"{hpBar.HpRectangles.Length}");
+        }
+
+
+        
+        private void doPlayerDamage(int amt)
+        {
+            currentHp -= amt;
+            computeHP();
+        }
+
+
+
         private void Form1_MouseDown(object sender, MouseEventArgs e)
         {
             // if Not parrying then resets parrywindow and sets to parrying
@@ -259,6 +314,13 @@ namespace parryPrototype
 
             foreach (Projectile bullet in Projectile.ProjectileList)
                 e.Graphics.FillRectangle(Brushes.Red, bullet.getHitbox());
+
+            for (int i = 0; i < hpBar.IconCount; i++)
+            {
+                Brush colour = hpBar.HpRecColours[i];
+                RectangleF rec = hpBar.HpRectangles[i];
+                e.Graphics.FillRectangle(colour, rec);
+            }
         }
 
 
@@ -277,14 +339,17 @@ namespace parryPrototype
 
 
             label2.Text = ($"({this.Size.Width}, {this.Size.Height})"); // debugging
-                                                                        // mousePos = System.Windows.Forms.Cursor.Position;
 
 
             // debugging/visual indicator for parry
             if (isParrying)
                 playerBrush = Brushes.Gray;
             else if (playerIsHit)
+            {
                 playerBrush = Brushes.Red; // visual hit indicator
+                doPlayerDamage(1);
+                playerIsHit = false;
+            }
             else
                 playerBrush = Brushes.Blue;
 
