@@ -20,6 +20,7 @@ namespace parryPrototype
 
         hpBarUI hpBar;
 
+
         bool
             movingUp = false,
             movingDown = false,
@@ -28,6 +29,7 @@ namespace parryPrototype
             playerIsHit = false,
             isParrying = false,
             setFreeze = false,
+            isPaused = false,
             slowedMov = false;
 
 
@@ -43,7 +45,7 @@ namespace parryPrototype
         const float
             zoomFactor = 3.35F,
             slowFactor = 2.5F,
-            parryDurationS = 0.3F,
+            parryDurationS = 0.45F,
             perfectParryWindowS = 0.08F,
             slowDurationS = 0.35F,
             bulletCooldownS = 0.5F,
@@ -69,6 +71,7 @@ namespace parryPrototype
         {
             InitializeComponent();
             this.DoubleBuffered = true;
+
             // set height and width of window
             Width = 1460;
             Height = 770;
@@ -79,14 +82,16 @@ namespace parryPrototype
 
 
             bulletInterval = bulletCooldownS;
+
+
             currentHp=maxHp;
             computeHP();
 
 
             playerBrush = Brushes.Blue;
 
-            stopWatch.Start();
 
+            stopWatch.Start();
             CancellationToken threadCT = threadTokenSrc.Token;
             collisionThread = new Thread(() =>
             {
@@ -103,6 +108,11 @@ namespace parryPrototype
 
             collisionThread.Start();
 
+
+            label1.Hide();
+            label2.Hide();
+            label3.Hide();
+            label4.Hide();
         }
 
         private void getDeltaTime(/* object sender, EventArgs e */)
@@ -115,6 +125,8 @@ namespace parryPrototype
 
         private void collisionHandler()
         {
+            if (isPaused)
+                return;
 
             // checks if frozen 
             if (freezeFrame > 0)
@@ -165,7 +177,7 @@ namespace parryPrototype
                         bullet.rebound(defendBox.getCenter()); // required to prevent getting hit anyway when parrying
 
                         // if the current parry has lasted for at most the perfectParryWindow
-                        if (parryWindow >= parryDurationS - perfectParryWindowS * 10)
+                        if (parryWindow >= (parryDurationS - perfectParryWindowS) * 10)
                         {
                             //setFreeze = true;
                             slowFrame = slowDurationS*10;
@@ -206,7 +218,7 @@ namespace parryPrototype
             // ticks down the parry window
             if (isParrying && parryWindow > 0)
                 parryWindow -= (float)deltaTime;
-            if (parryWindow < 1)
+            if (parryWindow < 0)
                 isParrying = false;
 
 
@@ -280,6 +292,12 @@ namespace parryPrototype
         {
             currentHp -= amt;
             computeHP();
+            if (currentHp <= 0)
+            {
+                togglePause(true);
+                MessageBox.Show("you are dead");
+                Application.Exit();
+            }
         }
 
 
@@ -324,6 +342,23 @@ namespace parryPrototype
         }
 
 
+
+        private void togglePause(bool pause)
+        {
+            if (pause)
+            {
+                isPaused = true;
+                timer1.Enabled = false;
+            }
+            else
+            {
+                isPaused = false;
+                timer1.Enabled = true;
+            }
+        }
+
+
+
         // stores projectiles to be disposed of (as list cannot be altered mid-loop)
         List<Projectile> disposedProjectiles = new List<Projectile>();
         int slowTick = 0;
@@ -331,14 +366,12 @@ namespace parryPrototype
         // rendering timer
         private void timer1_Tick(object sender, EventArgs e)
         {
+
             if (slowFrame <= 0 && freezeFrame <= 0 && curZoom != 1)
             {
                 unZoomScreen(zoomFactor);
                 curZoom = 1;
             }
-
-
-            label2.Text = ($"({this.Size.Width}, {this.Size.Height})"); // debugging
 
 
             // debugging/visual indicator for parry
@@ -354,8 +387,7 @@ namespace parryPrototype
                 playerBrush = Brushes.Blue;
 
 
-
-            latestBulletInfo(); // debugging
+            // debugTools(); 
 
 
             this.Refresh();
@@ -365,9 +397,10 @@ namespace parryPrototype
 
 
 
-        // for debugging
-        private void latestBulletInfo()
+        private void debugTools()
         {
+            //label2.Text = ($"({this.Size.Width}, {this.Size.Height})"); // debugging
+
             if (Projectile.ProjectileList.Count > 0)
             {
                 Projectile p = Projectile.ProjectileList.Last();
