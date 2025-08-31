@@ -12,7 +12,7 @@ namespace parryPrototype
              width: 50,
              height: 50);
         Brush playerBrush;
-        
+
         PointF bulletOrigin = new Point (800, 250);
 
         CancellationTokenSource threadTokenSrc = new CancellationTokenSource();
@@ -42,7 +42,7 @@ namespace parryPrototype
         int
             maxHp = 6,
             currentHp,
-            targetFrameRate = 144,
+            targetFrameRate = 60,
             refreshRate;
 
         const float
@@ -166,7 +166,7 @@ namespace parryPrototype
                 slowFrame -= (float)deltaTime;
 
                 deltaTime /= slowFactor;
-                motionDT /= (zoomFactor / slowFactor);
+                motionDT = (zoomFactor * deltaTime);
             }
             else if (slowedMov)
             {
@@ -186,11 +186,12 @@ namespace parryPrototype
             }
 
 
+
             foreach (Projectile bullet in Projectile.ProjectileList)
             {
                 bullet.moveProjectile(motionDT);
 
-                if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox()))
+                if (defendBox.getHitbox().IntersectsWith(bullet.getHitbox())) 
                 {
 
                     if (isParrying)
@@ -203,6 +204,8 @@ namespace parryPrototype
                             //setFreeze = true;
                             slowFrame = slowDurationS*10;
                             zoomScreen(zoomFactor);
+                            isParrying = false;
+                            endLagTime = 0;
                             continue; // so that the projectile is not disposed of when rebounded
                         }
                     }
@@ -309,7 +312,6 @@ namespace parryPrototype
                 xOffset += hpIconOffset * hpBar.ScaleF; 
                 tempHpStore -= 2;
             }
-            // MessageBox.Show($"{hpBar.HpRectangles.Length}");
         }
 
 
@@ -394,7 +396,6 @@ namespace parryPrototype
 
         // stores projectiles to be disposed of (as list cannot be altered mid-loop)
         List<Projectile> disposedProjectiles = new List<Projectile>();
-        int slowTick = 0;
 
         // rendering timer
         private void timer1_Tick(object sender, EventArgs e)
@@ -523,7 +524,6 @@ namespace parryPrototype
 
 
 
-        // todo: use booleans so that the player cannot move during freezeFrame
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
             switch (e.KeyCode)
