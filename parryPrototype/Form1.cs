@@ -51,7 +51,7 @@ namespace parryPrototype
             slowDurationS = 0.35F,
 
             parryDurationS = 0.45F,
-            perfectParryWindowS = 0.08F,
+            perfectParryWindowS = 0.05F,
             parryEndlagS = 0.2F,
 
             bulletCooldownS = 0.5F,
@@ -210,6 +210,7 @@ namespace parryPrototype
                     else
                     {
                         playerIsHit = true;
+                        doPlayerDamage(1);
                         setFreeze = true;
                     }
 
@@ -410,11 +411,7 @@ namespace parryPrototype
             if (isParrying)
                 playerBrush = Brushes.Gray;
             else if (playerIsHit)
-            {
                 playerBrush = Brushes.Red; // visual hit indicator
-                doPlayerDamage(1);
-                playerIsHit = false;
-            }
             else
                 playerBrush = Brushes.Blue;
 
